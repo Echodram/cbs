@@ -1,0 +1,11 @@
+db.sqlite3
+/.idea/
+/venv/
+/.vscode/
+/media/
+/__pycache__/ 
+/.env/
+/cbs_back/__pycache__/ 
+/backend/__pycache__/ 
+/cbs_blog/__pycache__/ 
+/forum/__pycache__/

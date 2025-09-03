@@ -1,0 +1,71 @@
+
+{
+   "reference" : {
+                "_comment" : "adjuste the address accordingly to address of the web server",
+                "address" : "localhost:8080"
+            },
+
+    "children":{
+
+    "register/" : {
+            "_comment" : "Register any user",
+            "email" : "gaby@cbs.com",
+            "password" : "12345",
+            "firstname" : "valdo",
+            "lasname" : "valdo",
+            "role" : "teacher",
+            "p_image" : "C:/Users/lenovo/Desktop/image.png" 
+        },
+
+        "login/" : {
+                "_comment" : "Login user",
+                "email" : "valdo@cbs.com",
+                "password" :"1234"
+        }, 
+
+        "createcourse/" : {
+            "_comment" : "Create courses, Token needed",
+            "Header" : {"Authorization": "Token 1565c60a136420bc733b10c4a165e07698014acb"} ,
+                        "Content-Type": "application/json" },
+
+                    "data" : {
+                        "teacher" : "id",
+                        "title" : "title of the course",
+                        "description" : "description"
+                    },
+
+        "getcourse/" : {
+                "_comment" : "retrieve courses, Token needed",
+                "Header" : {"Authorization": "Token 1565c60a136420bc733b10c4a165e07698014acb"} ,
+                        "Content-Type": "application/json" },
+
+        "addlesson/" :{
+            "_comment" : "adding lesson, Token needed",
+            "Header" : {"Authorization": "Token 1565c60a136420bc733b10c4a165e07698014acb"} ,
+            "Content-Type": "application/json" },
+
+                    "data" : {
+                        "course" : "id",
+                        "title" : "title of the course",
+                        "description" : "description",
+                        "file" : "C:/Users/lenovo/Desktop/lesson.docx"
+                    }, 
+
+        "getlesson/" : {
+            "_comment" : "Create courses, Token needed",
+            "Header" : {"Authorization": "Token 1565c60a136420bc733b10c4a165e07698014acb"} ,
+            "Content-Type": "application/json" },
+
+
+        "subcourse/" : {
+            "Header" : {"Authorization": "Token 1565c60a136420bc733b10c4a165e07698014acb"} ,
+                            "Content-Type": "application/json" },
+            "course" : "id",
+            "title" : "title of the book",
+            "description" :  "description of the course"
+
+    }
+            
+}
+      
+    

@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    volumes:
+      - .:/app  
+      - sqlite_data:/app/
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_ENV=test
+      
+
+volumes:
+  sqlite_data:  
