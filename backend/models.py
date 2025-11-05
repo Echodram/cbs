@@ -39,6 +39,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = []
 
     objects = CustomUserManager()
+    bio = models.TextField(max_length=500, blank=True)
+    online_status = models.BooleanField(default=False)
+    last_seen = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.email
@@ -145,3 +148,139 @@ class Video(models.Model):
             self.title = self.title.lower()
         super().save(*args, **kwargs)
 
+class Room(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    is_private = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, 
+                                 null=True, blank=True, related_name='deleted_rooms')
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    
+    class Meta:
+        permissions = [
+            ("can_delete_room", "Can delete room"),
+        ]
+    
+    def __str__(self):
+        return self.name
+    
+    def soft_delete(self, user):
+        """Soft delete the room"""
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.deleted_by = user
+        self.save()
+        
+        # Notify all participants via WebSocket
+        self.notify_room_deletion()
+    
+    def hard_delete(self):
+        """Permanently delete the room and related data"""
+        # Delete all related messages and participants first
+        self.messages.all().delete()
+        self.participants.all().delete()
+        self.delete()
+    
+    def notify_room_deletion(self):
+        """Notify all participants that room was deleted"""
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"chat_{self.id}",
+            {
+                "type": "room_deleted",
+                "room_id": self.id,
+                "deleted_by": self.deleted_by.username if self.deleted_by else "System",
+            }
+        )
+    
+    def restore(self):
+        """Restore a soft-deleted room"""
+        self.is_deleted = False
+        self.deleted_at = None
+        self.deleted_by = None
+        self.save()
+
+class Message(models.Model):
+    room = models.ForeignKey(Room, related_name='messages', on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    content = models.TextField()
+    timestamp = models.DateTimeField(default=timezone.now)
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    message_type = models.CharField(
+        max_length=20, 
+        choices=[
+            ('text', 'Text'),
+            ('image', 'Image'),
+            ('file', 'File'),
+            ('system', 'System')
+        ],
+        default='text'
+    )
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['timestamp']
+    
+    def __str__(self):
+        return f'{self.user.username}: {self.content[:20]}'
+    
+    def soft_delete(self):
+        """Soft delete the message"""
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
+    
+    def edit_message(self, new_content, user):
+        """Edit message content with tracking"""
+        if not self.original_content and not self.is_edited:
+            # First edit - store original content
+            self.original_content = self.content
+        
+        self.content = new_content
+        self.is_edited = True
+        self.edited_at = timezone.now()
+        self.edit_count += 1
+        self.save()
+        
+        # Notify via WebSocket about the edit
+        self.notify_message_edit(user)
+    
+    def notify_message_edit(self, edited_by):
+        """Notify WebSocket group about message edit"""
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"chat_{self.room.id}",
+            {
+                "type": "message_edited",
+                "message_id": self.id,
+                "content": self.content,
+                "edited_at": self.edited_at.isoformat(),
+                "edit_count": self.edit_count,
+                "edited_by": edited_by.username,
+            }
+        )
+
+class RoomParticipant(models.Model):
+    room = models.ForeignKey(Room, related_name='participants', on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    is_admin = models.BooleanField(default=False)
+    can_delete = models.BooleanField(default=False)
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    class Meta:
+        unique_together = ['room', 'user']
+    
+    def __str__(self):
+        return f"{self.user.username} in {self.room.name}"

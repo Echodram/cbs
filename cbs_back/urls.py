@@ -21,5 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('backend.urls')),
     path('', include('cbs_blogs.urls')),
-    path('', include('forum.urls')),  # Include the forum app URLs
+    path('chat/api/', include('forum.urls')),  # Include the forum app URLs
 ]
