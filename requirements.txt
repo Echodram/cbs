@@ -1,0 +1,14 @@
+Django>=4.0,<5.0
+djangorestframework>=3.12,<4.0
+django-password-reset>=2.0,<3.0
+Pillow>=9.0,<10.0
+whitenoise
+django
+django-cors-headers>=3.0
+#Optional packages for development and testing
+django-debug-toolbar>=3.0,<4.0  # Debugging tool
+djangorestframework-simplejwt>=5.0,<6.0  # JWT authentication
+django-environ>=0.8,<1.0  # Environment variable management
+pytest>=6.0,<7.0  # Testing framework
+pytest-django>=4.0,<5.0  # Pytest support for Django
+channels[daphne]
