@@ -112,9 +112,13 @@ DATABASES = {
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
-        },
+         "hosts": [
+                {
+                    "address":f"redis://:{os.getenv('LEAPCELL_REDIS_PASSWORD')}"
+                              f"@{os.getenv('LEAPCELL_REDIS_HOST')}:"
+                              f"{os.getenv('LEAPCELL_REDIS_PORT', 6379)}"
+                              f"/{os.getenv('LEAPCELL_REDIS_DB', 0)}"
+                }],
     },
 }
 

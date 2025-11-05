@@ -2,8 +2,8 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
-from backend.models import Room, Message, RoomParticipant
-from .serializers import RoomSerializer, MessageSerializer, MessageEditSerializer
+from backend.models import Room, Message, RoomParticipant, CustomUser
+from .serializers import RoomSerializer, MessageSerializer, MessageEditSerializer, CustomUserSerializer
 from datetime import timezone
 
 class IsRoomParticipant(permissions.BasePermission):
@@ -381,3 +381,21 @@ class MessageViewSet(viewsets.ModelViewSet):
             {'status': 'Message deleted'},
             status=status.HTTP_200_OK
         )
+    
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = CustomUserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return CustomUser.objects.all()
+    
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def online(self, request):
+        online_users = CustomUser.objects.filter(online_status=True)
+        serializer = self.get_serializer(online_users, many=True)
+        return Response(serializer.data)
