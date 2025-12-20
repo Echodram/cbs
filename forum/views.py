@@ -5,6 +5,7 @@ from django.db.models import Q
 from backend.models import Room, Message, RoomParticipant, CustomUser
 from .serializers import RoomSerializer, MessageSerializer, MessageEditSerializer, CustomUserSerializer
 from datetime import timezone
+from collections import defaultdict
 
 class IsRoomParticipant(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -160,6 +161,120 @@ class RoomViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_200_OK
                 )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def rooms_with_messages(self, request):
+        """
+        Get all rooms with their messages for the current user
+        Query parameters:
+          - include_messages: true/false (default: true)
+          - messages_limit: number of messages per room (default: 50)
+          - offset: pagination offset (default: 0)
+        """
+        user = request.user
+        
+        # Get parameters with defaults
+        include_messages = request.query_params.get('include_messages', 'true').lower() == 'true'
+        messages_limit = int(request.query_params.get('messages_limit', 50))
+        offset = int(request.query_params.get('offset', 0))
+        
+        # Get rooms accessible to user
+        rooms = self.get_queryset()
+        
+        if include_messages:
+            # Get room IDs
+            room_ids = rooms.values_list('uuid', flat=True)
+            
+            # Get messages for these rooms with pagination
+            messages = Message.objects.filter(
+                room_id__in=room_ids,
+                is_deleted=False
+            ).order_by('-timestamp')[offset:offset + messages_limit]
+            
+            # Organize messages by room
+            messages_by_room = defaultdict(list)
+            for message in messages:
+                messages_by_room[message.room_id].append(message)
+            
+            # Serialize rooms with their messages
+            rooms_data = []
+            for room in rooms:
+                room_data = RoomSerializer(room, context={'request': request}).data
+                
+                if room.uuid in messages_by_room:
+                    # Get messages for this room and order them chronologically
+                    room_messages = sorted(
+                        messages_by_room[room.uuid], 
+                        key=lambda x: x.timestamp
+                    )
+                    room_data['messages'] = MessageSerializer(
+                        room_messages, 
+                        many=True,
+                        context={'request': request}
+                    ).data
+                else:
+                    room_data['messages'] = []
+                
+                rooms_data.append(room_data)
+            
+            return Response({
+                'count': len(rooms_data),
+                'rooms': rooms_data,
+                'has_more': len(messages) == messages_limit
+            })
+        
+        else:
+            # Just return rooms without messages
+            serializer = RoomSerializer(rooms, many=True, context={'request': request})
+            return Response({
+                'count': rooms.count(),
+                'rooms': serializer.data
+            })
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def recent_messages(self, request):
+        """
+        Get all recent messages across all rooms for the user
+        Useful for showing a unified chat feed
+        """
+        user = request.user
+        
+        # Get accessible rooms
+        accessible_rooms = self.get_queryset()
+        room_ids = accessible_rooms.values_list('id', flat=True)
+        
+        # Get recent messages
+        limit = int(request.query_params.get('limit', 100))
+        offset = int(request.query_params.get('offset', 0))
+        
+        messages = Message.objects.filter(
+            room_id__in=room_ids,
+            is_deleted=False
+        ).select_related('user', 'room').order_by('-timestamp')[offset:offset + limit]
+        
+        # Organize by date
+        messages_by_date = defaultdict(list)
+        for message in messages:
+            date_str = message.timestamp.date().isoformat()
+            messages_by_date[date_str].append(message)
+        
+        # Serialize
+        result = []
+        for date_str, msgs in sorted(messages_by_date.items(), reverse=True):
+            result.append({
+                'date': date_str,
+                'messages': MessageSerializer(
+                    sorted(msgs, key=lambda x: x.timestamp, reverse=True),
+                    many=True,
+                    context={'request': request}
+                ).data
+            })
+        
+        return Response({
+            'count': messages.count(),
+            'messages_by_date': result,
+            'has_more': len(messages) == limit
+        })
     
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsRoomAdmin])
     def restore_room(self, request, pk=None):
@@ -240,7 +355,7 @@ class RoomViewSet(viewsets.ModelViewSet):
 
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
         room_id = self.request.query_params.get('room_id')
@@ -266,7 +381,7 @@ class MessageViewSet(viewsets.ModelViewSet):
         
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            f"chat_{message.room.id}",
+            f"chat_{message.room.uuid}",
             {
                 "type": "chat_message",
                 "message": MessageSerializer(message, context=self.get_serializer_context()).data

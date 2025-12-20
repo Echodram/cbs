@@ -65,20 +65,16 @@ class RoomDeleteSerializer(serializers.Serializer):
 
 class MessageSerializer(serializers.ModelSerializer):
     user = CustomUserSerializer(read_only=True)
-    can_edit = serializers.SerializerMethodField()
-    can_delete = serializers.SerializerMethodField()
+   
     
     class Meta:
         model = Message
         fields = [
-            'id', 'room', 'user', 'content', 'timestamp', 
+            'uuid', 'room', 'user', 'content', 'timestamp', 
             'message_type', 'is_deleted', 'deleted_at',
-            'is_edited', 'edited_at', 'edit_count', 'original_content',
-            'can_edit', 'can_delete'
         ]
         read_only_fields = [
-            'id', 'user', 'timestamp', 'is_deleted', 'deleted_at',
-            'is_edited', 'edited_at', 'edit_count', 'original_content'
+            'uuid', 'user', 'timestamp', 'is_deleted', 'deleted_at',
         ]
     
     def get_can_edit(self, obj):
