@@ -4,7 +4,7 @@ db.sqlite3
 /.vscode/
 /media/
 /__pycache__/ 
-/.env/
+.env
 /cbs_back/__pycache__/ 
 /backend/__pycache__/ 
 /cbs_blog/__pycache__/ 
